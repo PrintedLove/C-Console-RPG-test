@@ -9,12 +9,15 @@
 #define TRUE 1
 #define MAP_X_MAX 96
 #define MAP_Y_MAX 32
+#define FLOOR_Y 22
 
 typedef struct _Character {
-    short x = MAP_X_MAX / 2 + 1, y = 19;
+    short x = MAP_X_MAX / 2 + 1, y = MAP_Y_MAX / 2;
+    float x_accel = 0, y_accel = 0;
     short size_x = 3, size_y = 3;
-    char sprite[10] = " 0 (|)_^_";
+    float flyTime = 0;
     bool direction = TRUE;	//true=right, false=left
+    char sprite[10] = " 0 (|)_^_";
     			//character stat
     char name[16];
     int lv = 1;
@@ -33,6 +36,7 @@ Character character;
 void SetConsole();
 void ControlUI();
 void ControlCharacter();
+void ControlMove(short *x, short *y, float *x_accel, float *y_accel, short size_x, short size_y, float *flyTime);
 
 void FillMap(char str[], char str_s, int max_value);
 void EditMap(int x, int y, char str);
@@ -44,7 +48,7 @@ int NumLen(int num);
 int StrLen(char str[]);
 
 char wall_floor[MAP_X_MAX];
-char sprite_invenWeapon[][11] = {"   /   /  ", "  |   \"+\" ", "   /  '+. "};
+char sprite_invenWeapon[][11] = {"   /   /  ", "   /  '+. ", "  |   \"+\" "};
 char sprite_rightWeapon[][4] = {"---", "+--", "+=>"};
 char sprite_leftWeapon[][4] = {"---", "--+", "<=+"};
 short weapon_stat[] = {5, 10, 15};
@@ -92,10 +96,11 @@ void SetConsole() {
 
 void ControlUI() {
 	int len;	//length of previous sprite
-	DrawSprite(1, 22, MAP_X_MAX, 1, wall_floor);	//draw floor
+	DrawSprite(1, FLOOR_Y, MAP_X_MAX, 1, wall_floor);	//draw floor
 	
 	DrawBox(1, 1, 35, 8); DrawBox(27, 4, 7, 4);
-	DrawSprite(28, 5, 5, 2, sprite_invenWeapon[character.weapon]);	//draw weaponinven
+	DrawSprite(28, 5, 5, 2, sprite_invenWeapon[character.weapon]);
+	DrawSprite(28, 3, 6, 1, "Weapon");	//draw weaponinven
 	
 	EditMap(3, 2, '\"');	//draw name, lv, exp
 	DrawSprite(4, 2, StrLen(character.name), 1, character.name); len = 4 + StrLen(character.name);
@@ -134,7 +139,7 @@ void ControlCharacter() {
 		character.expi += character.lv * 10;
 	}
 				//hp, mp
-	if (character.gen_tick + 1000 < tick) {
+	if (character.gen_tick + 900 < tick) {
 		character.gen_tick = tick;
 		character.hp += roundf(character.hpm * 0.01);
 		character.mp += roundf(character.mpm * 0.05);
@@ -144,10 +149,11 @@ void ControlCharacter() {
 	if (character.mp > character.mpm)
 		character.mp = character.mpm;
 				//keyboard
-	if (GetAsyncKeyState(0x5A) & 0x8000) {
+	if (GetAsyncKeyState(0x5A) & 0x8000 && character.flyTime == 0) {
 		attack = TRUE;
 		character.atk_m[0] = TRUE;
 	}
+	
 	if (character.atk_m[0]) {
 		if (tick > character.atk_tick + 150) {	//attack
 			character.atk_tick = tick;
@@ -177,26 +183,31 @@ void ControlCharacter() {
 		}
 	} else {
 		if (GetAsyncKeyState(VK_LEFT) & 0x8000 && character.x > 1) {
-			character.x--;
+			character.x_accel = -1;
 			character.direction = FALSE;
 			move = TRUE;
 		}
 		
 		if (GetAsyncKeyState(VK_RIGHT) & 0x8000 && character.x < MAP_X_MAX - 2) {
-			character.x++;
+			character.x_accel = 1;
 			character.direction = TRUE;
 			move = TRUE;
 		}
 	}
 	
+	if (GetAsyncKeyState(VK_UP) & 0x8000 && character.y + 3 == FLOOR_Y)
+			character.y_accel = -1.75;
+	
 	if (GetAsyncKeyState(0x31) & 0x8000)	//1
-		character.weapon = 1;
+		character.weapon = 0;
 		
 	if (GetAsyncKeyState(0x32) & 0x8000)	//2
+		character.weapon = 1;
+	
+	if (GetAsyncKeyState(0x33) & 0x8000)	//3
 		character.weapon = 2;
-		
-	if (GetAsyncKeyState(0x4C) & 0x8000)	//L
-		character.exp += 25;
+	
+	ControlMove(&character.x, &character.y, &character.x_accel, &character.y_accel, character.size_x, character.size_y, &character.flyTime);
 	
 	if (tick > character.leg_tick + 90) {	//leg tick	
 		character.leg_tick = tick;
@@ -219,20 +230,19 @@ void ControlCharacter() {
 			switch (character.atk_m[2]) {
 				case 1:
 					character.sprite[5] = ' ';
+					
 					switch (character.atk_m[1]) {
 						case 1:
 							character.sprite[6] = '_'; character.sprite[8] = '_';
-							EditMap(character.x + 3, character.y, 'o');
+							DrawSprite(character.x + 3, character.y, 4, 1, "o -.");
 							break;
 						case 2:
 							character.leg_m = 1;
-							EditMap(character.x + 3, character.y + 1, 'o');
-							EditMap(character.x + 5, character.y, '.');
-							EditMap(character.x + 6, character.y + 1, ')');
-							EditMap(character.x + 5, character.y + 2, '\'');
+							DrawSprite(character.x + 3, character.y, 5, 3, "   . o   )   \' ");
 							break;
 						case 3:
 							character.sprite[6] = '_'; character.sprite[8] = '_';
+							DrawSprite(character.x + 3, character.y + 1, 4, 2, "o     -\'");
 							break;
 						default:
 							break;
@@ -258,6 +268,7 @@ void ControlCharacter() {
 					} break;
 				case 3:
 					character.sprite[5] = ' ';
+					
 					switch (character.atk_m[1]) {
 						case 1:
 							character.leg_m = 1;
@@ -308,20 +319,19 @@ void ControlCharacter() {
 			switch (character.atk_m[2]) {
 				case 1:
 					character.sprite[3] = ' ';
+					
 					switch (character.atk_m[1]) {
 						case 1:
 							character.sprite[6] = '_'; character.sprite[8] = '_';
-							EditMap(character.x - 1, character.y, 'o');
+							DrawSprite(character.x - 4, character.y, 4, 1, ".- o");
 							break;
 						case 2:
 							character.leg_m = 1;
-							EditMap(character.x - 1, character.y + 1, 'o');
-							EditMap(character.x - 3, character.y, '.');
-							EditMap(character.x - 4, character.y + 1, '(');
-							EditMap(character.x - 3, character.y + 2, '\'');
+							DrawSprite(character.x - 5, character.y, 5, 3, " .   (   o \'   ");
 							break;
 						case 3:
 							character.sprite[6] = '_'; character.sprite[8] = '_';
+							DrawSprite(character.x - 4, character.y + 1, 4, 2, "   o\'-  ");
 							break;
 						default:
 							break;
@@ -347,6 +357,7 @@ void ControlCharacter() {
 					} break;
 				case 3:
 					character.sprite[3] = ' ';
+					
 					switch (character.atk_m[1]) {
 						case 1:
 							character.leg_m = 1;
@@ -392,6 +403,32 @@ void ControlCharacter() {
 		}
 	}
 	DrawSprite(character.x, character.y, character.size_x, character.size_y, character.sprite);
+}
+
+void ControlMove(short *x, short *y, float *x_accel, float *y_accel, short size_x, short size_y, float *flyTime) {
+	
+	float x_value = *x_accel, y_value = *y_accel;
+	
+	if (*y + size_y < FLOOR_Y) {
+		*flyTime += 0.05;
+		*y_accel += *flyTime;
+	} else {
+		*flyTime = 0;
+	}
+	
+	if (x_value != 0 || y_value != 0) {
+		if (*x + x_value < 1)
+			x_value = 1 - *x;
+		if (*x + size_x + x_value > MAP_X_MAX)
+			x_value = MAP_X_MAX - size_x - *x;
+		if (*y + size_y + y_value > FLOOR_Y)
+			y_value = FLOOR_Y - *y - size_y;
+	}
+	
+	*x += floor(x_value + 0.5); *y += floor(y_value + 0.5);
+	
+	if (*x_accel > 0) *x_accel -= 0.1; if (*x_accel < 0) *x_accel += 0.1;
+	if (*y_accel > 0) *y_accel -= 0.1; if (*y_accel < 0) *y_accel += 0.1;
 }
 
 void FillMap(char str[], char str_s, int max_value) {
