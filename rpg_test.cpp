@@ -47,11 +47,21 @@ void DrawBox(int x, int y, int size_x, int size_y);
 int NumLen(int num);
 int StrLen(char str[]);
 
-char wall_floor[MAP_X_MAX];
-char sprite_invenWeapon[][11] = {"   /   /  ", "   /  '+. ", "  |   \"+\" "};
-char sprite_rightWeapon[][4] = {"---", "+--", "+=>"};
-char sprite_leftWeapon[][4] = {"---", "--+", "<=+"};
 short weapon_stat[] = {5, 10, 15};
+
+char sprite_floor[MAP_X_MAX];
+char sprite_character[10] = " 0 (|)_^_";
+char sprite_character_leg[2][3][4] = 
+{{"-^.", "_^\'", "_^."},
+ {".^-", "\'^_", ".^_"}};
+char sprite_invenWeapon[][11] = {"   /   /  ", "   /  '+. ", "  |   \"+\" "};
+char sprite_Weapon[2][3][4] = 
+{{"---", "+--", "+=>"},
+ {"---", "--+", "<=+"}};
+char sprite_Weapon[3][3][16] = 
+{{"o -.           ", "   . o   )   \' ", "     o      -\' "},
+ {"---", "--+", "<=+"}};
+
 char mapData[MAP_X_MAX * MAP_Y_MAX];
 
 int main() {
@@ -61,7 +71,7 @@ int main() {
 	printf("Enter your name: ");
 	scanf("%[^\n]s", character.name);
 	
-	FillMap(wall_floor, '=', MAP_X_MAX);
+	FillMap(sprite_floor, '=', MAP_X_MAX);
 	
 	unsigned int system_tick = GetTickCount();
 	
@@ -96,7 +106,7 @@ void SetConsole() {
 
 void ControlUI() {
 	int len;	//length of previous sprite
-	DrawSprite(1, FLOOR_Y, MAP_X_MAX, 1, wall_floor);	//draw floor
+	DrawSprite(1, FLOOR_Y, MAP_X_MAX, 1, sprite_floor);	//draw floor
 	
 	DrawBox(1, 1, 35, 8); DrawBox(27, 4, 7, 4);
 	DrawSprite(28, 5, 5, 2, sprite_invenWeapon[character.weapon]);
@@ -182,20 +192,20 @@ void ControlCharacter() {
 			}	
 		}
 	} else {
-		if (GetAsyncKeyState(VK_LEFT) & 0x8000 && character.x > 1) {
+		if (GetAsyncKeyState(VK_LEFT) & 0x8000 && character.x > 1) {	//move left
 			character.x_accel = -1;
 			character.direction = FALSE;
 			move = TRUE;
 		}
 		
-		if (GetAsyncKeyState(VK_RIGHT) & 0x8000 && character.x < MAP_X_MAX - 2) {
+		if (GetAsyncKeyState(VK_RIGHT) & 0x8000 && character.x < MAP_X_MAX - 2) {	//move right
 			character.x_accel = 1;
 			character.direction = TRUE;
 			move = TRUE;
 		}
 	}
 	
-	if (GetAsyncKeyState(VK_UP) & 0x8000 && character.y + 3 == FLOOR_Y)
+	if (GetAsyncKeyState(VK_UP) & 0x8000 && character.y + 3 == FLOOR_Y)	//jump
 			character.y_accel = -1.75;
 	
 	if (GetAsyncKeyState(0x31) & 0x8000)	//1
@@ -221,188 +231,13 @@ void ControlCharacter() {
 			character.leg_m = 1;
 	}
 				//sprite
-	character.sprite[4] = '|'; character.sprite[6] = '_'; character.sprite[8] = '_';
 	
-	if (character.direction) {
-		character.sprite[3] = '(';
-		
-		if (character.atk_m[0]) {
-			switch (character.atk_m[2]) {
-				case 1:
-					character.sprite[5] = ' ';
-					
-					switch (character.atk_m[1]) {
-						case 1:
-							character.sprite[6] = '_'; character.sprite[8] = '_';
-							DrawSprite(character.x + 3, character.y, 4, 1, "o -.");
-							break;
-						case 2:
-							character.leg_m = 1;
-							DrawSprite(character.x + 3, character.y, 5, 3, "   . o   )   \' ");
-							break;
-						case 3:
-							character.sprite[6] = '_'; character.sprite[8] = '_';
-							DrawSprite(character.x + 3, character.y + 1, 4, 2, "o     -\'");
-							break;
-						default:
-							break;
-					} break;
-				case 2:
-					switch (character.atk_m[1]) {
-						case 1:
-							character.sprite[5] = 'o'; character.sprite[6] = '_'; character.sprite[8] = '_';
-							DrawSprite(character.x + 3, character.y + 1, 3, 1, sprite_rightWeapon[character.weapon]);
-							break;
-						case 2:
-							character.sprite[5] = ' ';
-							character.leg_m = 1;
-							EditMap(character.x + 4, character.y + 1, 'o');
-							DrawSprite(character.x + 5, character.y + 1, 3, 1, sprite_rightWeapon[character.weapon]);
-							break;
-						case 3:
-							character.sprite[5] = 'o'; character.sprite[6] = '_'; character.sprite[8] = '_';
-							DrawSprite(character.x + 3, character.y + 1, 3, 1, sprite_rightWeapon[character.weapon]);
-							break;
-						default:
-							break;
-					} break;
-				case 3:
-					character.sprite[5] = ' ';
-					
-					switch (character.atk_m[1]) {
-						case 1:
-							character.leg_m = 1;
-							EditMap(character.x + 3, character.y + 2, 'o');
-							DrawSprite(character.x + 4, character.y + 2, 3, 1, sprite_rightWeapon[character.weapon]);
-							DrawSprite(character.x + 4, character.y, 3, 1, sprite_rightWeapon[character.weapon]);
-							
-							break;
-						case 2:
-							character.leg_m = 1;
-							EditMap(character.x + 4, character.y + 1, 'o');
-							DrawSprite(character.x + 5, character.y + 1, 3, 1, sprite_rightWeapon[character.weapon]);
-							break;
-						case 3:
-							character.sprite[6] = '_'; character.sprite[8] = '_';
-							EditMap(character.x + 3, character.y, 'o');
-							DrawSprite(character.x + 4, character.y + 2, 3, 1, sprite_rightWeapon[character.weapon]);
-							DrawSprite(character.x + 4, character.y, 3, 1, sprite_rightWeapon[character.weapon]);
-							break;
-						default:
-							break;
-					} break;
-				default:
-					break;
-			}
-		} else {
-			character.sprite[5] = 'o';
-			DrawSprite(character.x + 3, character.y + 1, 3, 1, sprite_rightWeapon[character.weapon]);
-		}
-		
-		switch (character.leg_m) {
-			case 1:
-				character.sprite[4] = 'l'; character.sprite[6] = '.'; character.sprite[8] = '-';
-				break;
-			case 2:
-				character.sprite[6] = '\''; character.sprite[8] = '_';
-				break;
-			case 3:
-				character.sprite[6] = '.'; character.sprite[8] = '_';
-				break;
-			default:
-				break;
-		}
-	} else {
-		character.sprite[5] = ')';
-		
-		if (character.atk_m[0]) {
-			switch (character.atk_m[2]) {
-				case 1:
-					character.sprite[3] = ' ';
-					
-					switch (character.atk_m[1]) {
-						case 1:
-							character.sprite[6] = '_'; character.sprite[8] = '_';
-							DrawSprite(character.x - 4, character.y, 4, 1, ".- o");
-							break;
-						case 2:
-							character.leg_m = 1;
-							DrawSprite(character.x - 5, character.y, 5, 3, " .   (   o \'   ");
-							break;
-						case 3:
-							character.sprite[6] = '_'; character.sprite[8] = '_';
-							DrawSprite(character.x - 4, character.y + 1, 4, 2, "   o\'-  ");
-							break;
-						default:
-							break;
-					} break;
-				case 2:
-					switch (character.atk_m[1]) {
-						case 1:
-							character.sprite[3] = 'o'; character.sprite[6] = '_'; character.sprite[8] = '_';
-							DrawSprite(character.x - 3, character.y + 1, 3, 1, sprite_leftWeapon[character.weapon]);
-							break;
-						case 2:
-							character.sprite[3] = ' ';
-							character.leg_m = 1;
-							EditMap(character.x - 2, character.y + 1, 'o');
-							DrawSprite(character.x - 5, character.y + 1, 3, 1, sprite_leftWeapon[character.weapon]);
-							break;
-						case 3:
-							character.sprite[3] = 'o'; character.sprite[6] = '_'; character.sprite[8] = '_';
-							DrawSprite(character.x - 3, character.y + 1, 3, 1, sprite_leftWeapon[character.weapon]);
-							break;
-						default:
-							break;
-					} break;
-				case 3:
-					character.sprite[3] = ' ';
-					
-					switch (character.atk_m[1]) {
-						case 1:
-							character.leg_m = 1;
-							EditMap(character.x - 1, character.y + 2, 'o');
-							DrawSprite(character.x - 4, character.y + 2, 3, 1, sprite_leftWeapon[character.weapon]);
-							DrawSprite(character.x - 4, character.y, 3, 1, sprite_leftWeapon[character.weapon]);
-							
-							break;
-						case 2:
-							character.leg_m = 1;
-							EditMap(character.x - 2, character.y + 1, 'o');
-							DrawSprite(character.x - 5, character.y + 1, 3, 1, sprite_leftWeapon[character.weapon]);
-							break;
-						case 3:
-							character.sprite[6] = '_'; character.sprite[8] = '_';
-							EditMap(character.x - 1, character.y, 'o');
-							DrawSprite(character.x - 4, character.y + 2, 3, 1, sprite_leftWeapon[character.weapon]);
-							DrawSprite(character.x - 4, character.y, 3, 1, sprite_leftWeapon[character.weapon]);
-							break;
-						default:
-							break;
-					} break;
-				default:
-					break;
-			}
-		} else {
-			character.sprite[3] = 'o'; 
-			DrawSprite(character.x - 3, character.y + 1, 3, 1, sprite_leftWeapon[character.weapon]);
-		}
-		
-		switch (character.leg_m) {
-			case 1:
-				character.sprite[4] = 'l'; character.sprite[6] = '-'; character.sprite[8] = '.';
-				break;
-			case 2:
-				character.sprite[6] = '_'; character.sprite[8] = '\'';
-				break;
-			case 3:
-				character.sprite[6] = '_'; character.sprite[8] = '.';
-				break;
-			default:
-				break;
-		}
-	}
+	
+	
 	DrawSprite(character.x, character.y, character.size_x, character.size_y, character.sprite);
+	if (move) {
+		DrawSprite(character.x, character.y + 2, 3, 1, sprite_character_leg[character.direction][character.leg_m - 1]);
+	}
 }
 
 void ControlMove(short *x, short *y, float *x_accel, float *y_accel, short size_x, short size_y, float *flyTime) {
