@@ -17,7 +17,7 @@ typedef struct _Character {
     short size_x = 3, size_y = 3;
     float flyTime = 0;
     bool direction = TRUE;	//true=right, false=left
-    char sprite[10] = " 0 (|)_^_";
+    char sprite[10] = " 0  | _^_";
     			//character stat
     char name[16];
     int lv = 1;
@@ -55,12 +55,12 @@ char sprite_character_leg[2][3][4] =
 {{"-^.", "_^\'", "_^."},
  {".^-", "\'^_", ".^_"}};
 char sprite_invenWeapon[][11] = {"   /   /  ", "   /  '+. ", "  |   \"+\" "};
-char sprite_Weapon[2][3][4] = 
-{{"---", "+--", "+=>"},
- {"---", "--+", "<=+"}};
-char sprite_Weapon[3][3][16] = 
-{{"o -.           ", "   . o   )   \' ", "     o      -\' "},
- {"---", "--+", "<=+"}};
+char sprite_Weapon[][3][4] = 
+{{"---", "--+", "<=+"},
+ {"---", "+--", "+=>"}};
+char sprite_normalAttack[][3][16] = 
+{{".-  o          ", " .   (   o \'   ", "         o \'-  "},
+ {"o -.           ", "   . o   )   \' ", "     o      -\' "}};
 
 char mapData[MAP_X_MAX * MAP_Y_MAX];
 
@@ -117,12 +117,15 @@ void ControlUI() {
 	DrawSprite(len, 2, 7, 1, "\" LV."); len += 5;
 	DrawNumber(len, 2, character.lv); len += NumLen(character.lv);
 	DrawSprite(len, 2, 2, 1, " ("); len += 2;
+	
 	int expPer = roundf(character.exp * 100 / character.expi);
+	
 	if (!expPer) {
 		EditMap(len, 2, '0'); len ++;
 	} else {
 		DrawNumber(len, 2, expPer); len += NumLen(expPer);
 	}
+	
 	DrawSprite(len, 2, 2, 1, "%)");
 	
 	DrawSprite(4, 4, 3, 1, "HP:");	//draw HP
@@ -231,13 +234,68 @@ void ControlCharacter() {
 			character.leg_m = 1;
 	}
 				//sprite
-	
-	
-	
 	DrawSprite(character.x, character.y, character.size_x, character.size_y, character.sprite);
-	if (move) {
-		DrawSprite(character.x, character.y + 2, 3, 1, sprite_character_leg[character.direction][character.leg_m - 1]);
+	
+	if (character.direction) {
+		EditMap(character.x, character.y + 1, '(');
+	} else {
+		EditMap(character.x + 2, character.y + 1, ')');
 	}
+		
+	if (character.atk_m[0] && character.atk_m[1] > 0) {
+		switch (character.atk_m[2]) {
+			case 1:
+				DrawSprite(character.x - 5 + 8 * character.direction, character.y, 5, 3, sprite_normalAttack[character.direction][character.atk_m[1] - 1]);
+				break;
+			case 2:
+				switch (character.atk_m[1]) {
+					case 1:
+						EditMap(character.x + 2 * character.direction, character.y + 1, 'o');
+						DrawSprite(character.x - 3 + 6 * character.direction, character.y + 1, 3, 1, sprite_Weapon[character.direction][character.weapon]);
+						break;
+					case 2:
+						EditMap(character.x - 2 + 6 * character.direction, character.y + 1, 'o');
+						DrawSprite(character.x - 5 + 10 * character.direction, character.y + 1, 3, 1, sprite_Weapon[character.direction][character.weapon]);
+						break;
+					case 3:
+						EditMap(character.x + 2 * character.direction, character.y + 1, 'o');
+						DrawSprite(character.x - 3 + 6 * character.direction, character.y + 1, 3, 1, sprite_Weapon[character.direction][character.weapon]);
+						break;
+				} break;
+			case 3:
+				switch (character.atk_m[1]) {
+					case 1:
+						EditMap(character.x - 1 + 4 * character.direction, character.y + 2, 'o');
+						DrawSprite(character.x - 4 + 8 * character.direction, character.y + 2, 3, 1, sprite_Weapon[character.direction][character.weapon]);
+						DrawSprite(character.x - 4 + 8 * character.direction, character.y, 3, 1, sprite_Weapon[character.direction][character.weapon]);
+						break;
+					case 2:
+						EditMap(character.x - 2 + 6 * character.direction, character.y + 1, 'o');
+						DrawSprite(character.x - 5 + 10 * character.direction, character.y + 1, 3, 1, sprite_Weapon[character.direction][character.weapon]);
+						break;
+					case 3:
+						EditMap(character.x - 1 + 4 * character.direction, character.y, 'o');
+						DrawSprite(character.x - 5 + 10 * character.direction, character.y + 2, 3, 1, sprite_Weapon[character.direction][character.weapon]);
+						DrawSprite(character.x - 5 + 10 * character.direction, character.y, 3, 1, sprite_Weapon[character.direction][character.weapon]);
+						break;
+				} break;
+		}
+		
+		if ((character.atk_m[2] < 3 && character.atk_m[1] == 2) || (character.atk_m[2] == 3 && character.atk_m[1] > 1)) {
+			EditMap(character.x + 2 - 2 * character.direction, character.y + 2, '.');
+			EditMap(character.x + 2 * character.direction, character.y + 2, '-');
+			EditMap(character.x + 1, character.y + 1, 'l');
+		}
+	} else {
+		EditMap(character.x + character.direction * 2, character.y + 1, 'o');
+		DrawSprite(character.x - 3 + 6 * character.direction, character.y + 1, 3, 1, sprite_Weapon[character.direction][character.weapon]);
+		
+		if (character.leg_m == 3)
+			EditMap(character.x + 1, character.y + 1, 'l');
+	}
+	
+	if (move)
+		DrawSprite(character.x, character.y + 2, 3, 1, sprite_character_leg[character.direction][character.leg_m - 1]);
 }
 
 void ControlMove(short *x, short *y, float *x_accel, float *y_accel, short size_x, short size_y, float *flyTime) {
