@@ -2,6 +2,9 @@
 // made by "PrintedLove"
 // https://printed.tistory.com/
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <memory.h>
 #include <math.h>
 #include <time.h>
 #include <windows.h>
@@ -10,65 +13,58 @@
 #define MAP_X_MAX 96
 #define MAP_Y_MAX 32
 #define FLOOR_Y 26
+#define OBJECT_MAX 32
 
 typedef struct _Character {
-    short coord[2] = {MAP_X_MAX / 2, MAP_Y_MAX / 2};
-    float accel[2] = {0, };
-    short size[2] = {3, 3};
-    float flyTime = 0;
+    short coord[2] = {MAP_X_MAX / 2, MAP_Y_MAX / 2}, size[2] = {3, 3};	//coordinate value and size
+    float accel[2] = {0, }, flyTime = 0;	//acceleration value and flotation time
     bool direction = TRUE;	//true=right, false=left
     			//character stat
     char name[16];
     int lv = 1;
-    unsigned int exp[2] = {100, 0};	//0=expi, 1=exp
-    int hp[2] = {100, 0};	//0=hpm, 1=hp
-    int mp[2] = {50, 0};
-    int power = 10;
-    short weapon = 0;
+    unsigned int exp[2] = {100, 0};	//0=exp required, 1=current exp
+    int hp[2] = {100, 0}, mp[2] = {50, 0};	//0=max value, 1=current value
+    short power = 10, weapon = 0;
     unsigned int score = 0;
     			//animation control
-    short motion[4] = {1, FALSE, 0, 1};	//motion	//leg_motion, attack_motion 1, 2, 3
-    unsigned int tick[4] = {0, };	//gen_tick, leg_tick, atk_tick, dash_tick
+    short motion[4] = {1, FALSE, 0, 1};	//motion value		//leg_motion, attack_motion(1, 2, 3)
+    unsigned int tick[4] = {0, };	//tick 		//gen_tick, leg_tick, atk_tick, dash_tick
 }Character;
 
-typedef struct _Enemy {
-    short coord[2];
-    float accel[2];
-    short size[2];
-    float flyTime = 0;
+typedef struct _Object {	//enemys, projectiles, particles, etc.
+    short coord[2], size[2];
+    float accel[2], flyTime = 0;
     bool direction = TRUE;
-    			//enemy stat
-    bool alive = FALSE;
+    			//object stat
     short kinds;
     int hp[2];
     int dam;
     			//animation control
     short motion[3];	//motion
     unsigned int tick[4];
-}Enemy;
+}Object;
 
 Character character;
-Enemy enemy;
+Object **objects;
 
-void StartGame();
+void StartGame();	//initialize
 void UpdateGame();
 void SetConsole();
 void ControlUI();
 void ControlCharacter();
 void ControlEnemy();
-
-void MotionControl(short coord[], float accel[], short size[], float *flyTime);
-void DrawBox(short x, short y, short size_x, short size_y);
-void DrawNumber(short x, short y, int num);
-void DrawSprite(short x, short y, short size_x, short size_y, char spr[]);
-void FillMap(char str[], char str_s, int max_value);
-void EditMap(short x, short y, char str);
-
+void CreateObject();
+void MotionControl(short coord[], float accel[], short size[], float *flyTime);	// motion control
+void DrawBox(short x, short y, short size_x, short size_y);	//draw box of size_x, size_y at x, y coordinates
+void DrawNumber(short x, short y, int num);	//draw numbers at x, y coordinates (align left)
+void DrawSprite(short x, short y, short size_x, short size_y, char spr[]);	//draw sprite of size_x, size_y at x, y coordinates
+void FillMap(char str[], char str_s, int max_value);	//array initialization
+void EditMap(short x, short y, char str);	// edit x, y coordinate mapdata
 int NumLen(int num);
 int StrLen(char str[]);
 
 short stat_weapon[] = {5, 10, 15};
-unsigned int tick = GetTickCount();
+unsigned int tick = 0;
 
 char sprite_floor[MAP_X_MAX];
 char sprite_character[10] = " 0  | _^_";
@@ -106,6 +102,9 @@ void StartGame() {
 	scanf("%[^\n]s", character.name);
 	
 	FillMap(sprite_floor, '=', MAP_X_MAX);
+	
+	objects = (Object **)malloc(sizeof(Object *) * OBJECT_MAX);	//dynamic memory allocation
+	memset(objects, 0, sizeof(Object *) * OBJECT_MAX);	//memory initialization
 }
 
 void UpdateGame() {
@@ -293,7 +292,23 @@ void ControlEnemy() {
 	
 }
 
-void MotionControl(short coord[], float accel[], short size[], float *flyTime) {	// Object motion control
+void CreateObject() {
+	int num = 0;
+	Object *obj = 0;
+	
+	while(num < OBJECT_MAX) {
+		if (! objects[num - 1]) {
+        	obj = (Object *)malloc(sizeof(Object));
+    		objects[num - 1] = obj;  
+
+        	return;
+    	}
+    	
+    	num ++;
+	}
+}
+
+void MotionControl(short coord[], float accel[], short size[], float *flyTime) {
 	float x_value = accel[0], y_value = accel[1];
 	
 	if (coord[1] + size[1] < FLOOR_Y) {
@@ -318,7 +333,7 @@ void MotionControl(short coord[], float accel[], short size[], float *flyTime) {
 	if (accel[1] > 0) accel[1] -= 0.1; if (accel[1] < 0) accel[1] += 0.1;
 }
 
-void DrawBox(short x, short y, short size_x, short size_y) {	//draw box of size_x, size_y at x, y coordinates
+void DrawBox(short x, short y, short size_x, short size_y) {
 	EditMap(x, y, '.'); EditMap(x + size_x - 1, y, '.');
 	EditMap(x, y + size_y - 1, '\''); EditMap(x + size_x - 1, y + size_y - 1, '\'');
 	
@@ -331,7 +346,7 @@ void DrawBox(short x, short y, short size_x, short size_y) {	//draw box of size_
 	}
 }
 
-void DrawNumber(short x, short y, int num) {	//draw numbers at x, y coordinates (align left)
+void DrawNumber(short x, short y, int num) {
 	int tmp = num;
 	short len = NumLen(tmp), cnt = len;
     char str[len];
@@ -345,19 +360,19 @@ void DrawNumber(short x, short y, int num) {	//draw numbers at x, y coordinates 
     DrawSprite(x, y, len, 1, str);
 }
 
-void DrawSprite(short x, short y, short size_x, short size_y, char spr[]) {	//draw sprite of size_x, size_y at x, y coordinates
+void DrawSprite(short x, short y, short size_x, short size_y, char spr[]) {
 	for (int i = 0; i < size_y; i++) {
 		for (int n = 0; n < size_x; n++)
 			EditMap(x + n, y + i, spr[i * size_x + n]);
 	}
 }
 
-void FillMap(char str[], char str_s, int max_value) {	//array initialization
+void FillMap(char str[], char str_s, int max_value) {
 	for (int i = 0; i < max_value; i++)
 		str[i] = str_s;
 }
 
-void EditMap(short x, short y, char str) {	// edit x, y coordinate mapdata
+void EditMap(short x, short y, char str) {
 	if (x > 0 && y > 0 && x - 1 < MAP_X_MAX && y - 1 < MAP_Y_MAX)
 		mapData[(y - 1) * MAP_X_MAX + x - 1] = str;
 }
