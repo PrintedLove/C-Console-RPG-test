@@ -16,70 +16,72 @@
 #define OBJECT_MAX 32
 
 typedef struct _Character {
-    short coord[2] = {MAP_X_MAX / 2, MAP_Y_MAX / 2}, size[2] = {3, 3};	//coordinate value and size
-    float accel[2] = {0, }, flyTime = 0;	//acceleration value and flotation time
-    bool direction = TRUE;	//true=right, false=left
-    			//character stat
+    short coord[2], size[2];	//coordinate value and size
+    float accel[2], flyTime;	//acceleration value and flotation time
+    bool direction;	//true=right, false=left
+    			//stat
     char name[16];
-    int lv = 1;
-    unsigned int exp[2] = {100, 0};	//0=exp required, 1=current exp
-    int hp[2] = {100, 0}, mp[2] = {50, 0};	//0=max value, 1=current value
-    short power = 10, weapon = 0;
-    unsigned int score = 0;
+    int lv, exp[2], score, hp[2], mp[2];	//0=exp required, 1=current exp// 0=max value, 1=current value
+    short power, weapon;
     			//animation control
-    short motion[4] = {1, FALSE, 0, 1};	//motion value		//leg_motion, attack_motion(1, 2, 3)
-    unsigned int tick[4] = {0, };	//tick 		//gen_tick, leg_tick, atk_tick, dash_tick
+    short motion[4];	//motion value		//leg_motion, attack_motion(1, 2, 3)
+    unsigned int tick[4];	//tick 		//gen_tick, leg_tick, atk_tick, dash_tick
 }Character;
 
-typedef struct _Object {	//enemys, projectiles, particles, etc.
+typedef struct _Object {	//enemies, projectiles, particles, etc.
     short coord[2], size[2];
-    float accel[2], flyTime = 0;
-    bool direction = TRUE;
-    			//object stat
-    short kinds;
-    int hp[2];
-    int dam;
-    			//animation control
+    float accel[2], flyTime;
+    bool direction;
+
+    short kind;	//1~99: items, 100~199: enemies, 200~: projectiles, particles
+    int hp[2], exp;
+    short dam;
+    
     short motion[3];	//motion
-    unsigned int tick[4];
+    unsigned int tick[4];	//0: hpshow time(enemy) or active time(projecticles, particles)
 }Object;
 
-Character character;
+Character character = {{MAP_X_MAX/2,MAP_Y_MAX/2}, {3, 3}, {0, 0}, 0, 1, "", 1, {100, 0}, 0, {100, 100}, {50, 50}, 10, 0, {0, 0}, {0, 0}};
 Object **objects;
 
-void StartGame();	//initialize
+unsigned int tick = 0;
+char sprite_floor[MAP_X_MAX];
+char mapData[MAP_X_MAX * MAP_Y_MAX];	//array for graphics
+
+const short size_enemy[2][2] = {{3, 3}, {4, 2}};
+const short stat_weapon[3] = {5, 10, 15};
+const char sprite_character[10] = " 0  | _^_";
+const char sprite_character_leg[2][3][4] = 
+{{"-^.", "_^\'", "_^."},
+ {".^-", "\'^_", ".^_"}};
+const char sprite_enemy1[2][13] = {" __ (  )----", " __ [  ]\'--\'"};
+const char sprite_normalAttack[2][3][16] = 
+{{" .- o          ", " .   (   o \'   ", "         o \'-  "},
+ {"o -.           ", "   . o   )   \' ", "     o      -\' "}};
+const char sprite_weapon[2][3][4] = 
+{{"---", "--+", "<=+"},
+ {"---", "+--", "+=>"}};
+const char sprite_invenWeapon[3][11] = {"   /   /  ", "   /  '*. ", "  |   \"+\" "};
+
+void StartGame();	//=initialize
 void UpdateGame();
+void ExitGame();
 void SetConsole();
 void ControlUI();
 void ControlCharacter();
-void ControlEnemy();
-void CreateObject();
-void MotionControl(short coord[], float accel[], short size[], float *flyTime);	// motion control
+void ControlObject();
+void ControlEnemy(int index);
+void CreateObject(short x, short y, short kind);
+void RemoveObject(int index);
+bool EnemyPosition(short x, short size_x);	//direction the enemy looks at the character
+bool CollisionCheck(short coord1[], short coord2[], short size1[], short size2[]);	//check collision
+void MoveControl(short coord[], float accel[], short size[], float *flyTime);	// motion control
 void DrawBox(short x, short y, short size_x, short size_y);	//draw box of size_x, size_y at x, y coordinates
 void DrawNumber(short x, short y, int num);	//draw numbers at x, y coordinates (align left)
-void DrawSprite(short x, short y, short size_x, short size_y, char spr[]);	//draw sprite of size_x, size_y at x, y coordinates
+void DrawSprite(short x, short y, short size_x, short size_y, const char spr[]);	//draw sprite of size_x, size_y at x, y coordinates
 void FillMap(char str[], char str_s, int max_value);	//array initialization
 void EditMap(short x, short y, char str);	// edit x, y coordinate mapdata
-int NumLen(int num);
-int StrLen(char str[]);
-
-short stat_weapon[] = {5, 10, 15};
-unsigned int tick = 0;
-
-char sprite_floor[MAP_X_MAX];
-char sprite_character[10] = " 0  | _^_";
-char sprite_character_leg[2][3][4] = 
-{{"-^.", "_^\'", "_^."},
- {".^-", "\'^_", ".^_"}};
-char sprite_Weapon[2][3][4] = 
-{{"---", "--+", "<=+"},
- {"---", "+--", "+=>"}};
-char sprite_normalAttack[2][3][16] = 
-{{" .- o          ", " .   (   o \'   ", "         o \'-  "},
- {"o -.           ", "   . o   )   \' ", "     o      -\' "}};
-char sprite_invenWeapon[3][11] = {"   /   /  ", "   /  '*. ", "  |   \"+\" "};
-
-char mapData[MAP_X_MAX * MAP_Y_MAX];	//array for graphics
+int NumLen(int num);	//return length of number
 
 int main() {
 	StartGame();
@@ -87,35 +89,48 @@ int main() {
 	while (TRUE) {
 		if (tick + 30 < GetTickCount()) {
 			tick = GetTickCount();
-			
 			UpdateGame();
 		}
 	}
 	
+	ExitGame();
 	return 0;
 }
 
 void StartGame() {
 	SetConsole();
+	srand((unsigned int)time(NULL));
 	
 	printf("Enter your name: ");
 	scanf("%[^\n]s", character.name);
 	
 	FillMap(sprite_floor, '=', MAP_X_MAX);
 	
-	objects = (Object **)malloc(sizeof(Object *) * OBJECT_MAX);	//dynamic memory allocation
-	memset(objects, 0, sizeof(Object *) * OBJECT_MAX);	//memory initialization
+	objects = (Object **)malloc(sizeof(Object *) * OBJECT_MAX);
+	memset(objects, 0, sizeof(Object *) * OBJECT_MAX);
+	
+	CreateObject(76, 10, 100);
+	CreateObject(70, 10, 100);
+	CreateObject(64, 10, 100);
 }
 
 void UpdateGame() {
-	
 	FillMap(mapData, ' ', MAP_X_MAX * MAP_Y_MAX);	//initialize mapdata
 	
 	ControlUI();
 	ControlCharacter();
-	ControlEnemy();
+	ControlObject();
 	
-	fputs(mapData, stdout);	//update mapdata
+	puts(mapData);	//update mapdata
+}
+
+void ExitGame() {
+    for (int i = 0; i < OBJECT_MAX; i++) {
+        if (objects[i])
+            free(objects[i]);
+    }
+    
+    free(objects);
 }
 
 void SetConsole() {
@@ -129,8 +144,6 @@ void SetConsole() {
     ConsoleCursor.bVisible = 0;
     ConsoleCursor.dwSize = 1;
     SetConsoleCursorInfo(hConsole , &ConsoleCursor);
-    
-    srand((unsigned int)time(NULL));
 }
 
 void ControlUI() {
@@ -139,48 +152,49 @@ void ControlUI() {
 	
 	DrawSprite(1, FLOOR_Y, MAP_X_MAX, 1, sprite_floor);	//draw floor
 	
-	DrawBox(1, 1, 35, 8); DrawBox(27, 4, 7, 4);	//draw weaponinven
-	DrawSprite(28, 5, 5, 2, sprite_invenWeapon[character.weapon]);
-	DrawSprite(28, 3, 6, 1, "Weapon");
+	DrawBox(1, 2, 35, 8); DrawBox(27, 5, 7, 4);	//draw weaponinven
+	DrawSprite(28, 6, 5, 2, sprite_invenWeapon[character.weapon]);
+	DrawSprite(28, 4, 6, 1, "Weapon");
 	
-	EditMap(3, 2, '\"');	//draw name, lv, exp
-	DrawSprite(4, 2, StrLen(character.name), 1, character.name); len = 4 + StrLen(character.name);
-	DrawSprite(len, 2, 7, 1, "\" LV."); len += 5;
-	DrawNumber(len, 2, character.lv); len += NumLen(character.lv);
-	DrawSprite(len, 2, 2, 1, " ("); len += 2;
+	EditMap(3, 3, '\"');	//draw name, lv, exp
+	DrawSprite(4, 3, strlen(character.name), 1, character.name);	len = 4 + strlen(character.name);
+	DrawSprite(len, 3, 7, 1, "\" LV.");	len += 5;
+	DrawNumber(len, 3, character.lv);	len += NumLen(character.lv);
+	DrawSprite(len, 3, 2, 1, " (");	len += 2;
 	if (!expPer) {
-		EditMap(len, 2, '0'); len ++;
+		EditMap(len, 3, '0');	len ++;
 	} else {
-		DrawNumber(len, 2, expPer); len += NumLen(expPer);
+		DrawNumber(len, 3, expPer);	len += NumLen(expPer);
 	}
-	DrawSprite(len, 2, 2, 1, "%)");
+	DrawSprite(len, 3, 2, 1, "%)");
 	
-	DrawSprite(MAP_X_MAX - NumLen(character.score) - 7, 2, 6, 1, "SCORE:");	//draw score
-	DrawNumber(MAP_X_MAX - NumLen(character.score), 2, character.score);
+	DrawSprite(MAP_X_MAX - NumLen(character.score) - 7, 3, 6, 1, "SCORE:");	//draw score
+	DrawNumber(MAP_X_MAX - NumLen(character.score), 3, character.score);
 	
-	DrawSprite(4, 4, 3, 1, "HP:");	//draw HP
-	DrawNumber(8, 4, character.hp[1]);
-	EditMap(9 + NumLen(character.hp[1]), 4, '/');
-	DrawNumber(11 + NumLen(character.hp[1]), 4, character.hp[0]);
+	DrawSprite(4, 5, 3, 1, "HP:");	//draw HP
+	DrawNumber(8, 5, character.hp[1]);
+	EditMap(9 + NumLen(character.hp[1]), 5, '/');
+	DrawNumber(11 + NumLen(character.hp[1]), 5, character.hp[0]);
 	
-	DrawSprite(4, 5, 3, 1, "MP:");	//draw MP
-	DrawNumber(8, 5, character.mp[1]);
-	EditMap(9 + NumLen(character.mp[1]), 5, '/');
-	DrawNumber(11 + NumLen(character.mp[1]), 5, character.mp[0]);
+	DrawSprite(4, 6, 3, 1, "MP:");	//draw MP
+	DrawNumber(8, 6, character.mp[1]);
+	EditMap(9 + NumLen(character.mp[1]), 6, '/');
+	DrawNumber(11 + NumLen(character.mp[1]), 6, character.mp[0]);
 	
-	DrawSprite(4, 7, 6, 1, "Power:");	//draw power
-	DrawNumber(11, 7, character.power);
+	DrawSprite(4, 8, 6, 1, "Power:");	//draw power
+	DrawNumber(11, 8, character.power);
 }
 
 void ControlCharacter() {
 	bool move = FALSE, attack = FALSE;
+	int x = character.coord[0], y = character.coord[1];
 	
 	if (character.exp[1] >= character.exp[0]) {	//LV up
-		character.lv ++; character.hp[0] += 10; character.mp[0] += 5; character.power ++;
-		character.exp[1] = 0; character.exp[0] += character.lv * 10;
+		character.hp[0] += 10; character.mp[0] += 5; character.power ++;
+		character.lv ++; character.exp[1] = 0; character.exp[0] += character.lv * 10;
 	}
 	
-	if (character.tick[0] + 900 < tick) {	//hp, mp
+	if (character.tick[0] + 900 < tick) {	//hp,mp gen & control
 		character.tick[0] = tick;
 		character.hp[1] += roundf(character.hp[0] * 0.01);
 		character.mp[1] += roundf(character.mp[0] * 0.05);
@@ -194,6 +208,7 @@ void ControlCharacter() {
 		attack = TRUE;
 		character.motion[1] = TRUE;
 	}
+	
 	if (character.motion[1]) {
 		if (tick > character.tick[2] + 150) {	//attack motion calculation
 			character.tick[2] = tick;
@@ -211,7 +226,7 @@ void ControlCharacter() {
 				character.motion[3] = 1;	
 		}
 	} else {
-		if (GetAsyncKeyState(VK_LEFT) & 0x8000 && character.coord[0] > 1) {	//move left
+		if (GetAsyncKeyState(VK_LEFT) & 0x8000 && x > 1) {	//move left
 			if (character.accel[0] > -1)
 				character.accel[0] = -1;
 				
@@ -219,7 +234,7 @@ void ControlCharacter() {
 			move = TRUE;
 		}
 		
-		if (GetAsyncKeyState(VK_RIGHT) & 0x8000 && character.coord[0] < MAP_X_MAX - 2) {	//move right
+		if (GetAsyncKeyState(VK_RIGHT) & 0x8000 && x < MAP_X_MAX - 2) {	//move right
 			if (character.accel[0] < 1)
 				character.accel[0] = 1;
 				
@@ -228,15 +243,13 @@ void ControlCharacter() {
 		}
 			
 		if (GetAsyncKeyState(0x58) & 0x8000 && character.tick[3] + 1200 <= tick) {	//dash
-			character.accel[0] = character.direction * 8 - 4;
+			character.accel[0] = character.direction * 6 - 3;
 			character.tick[3] = tick;
 		}
 	}
 	
-	if (GetAsyncKeyState(VK_UP) & 0x8000 && character.coord[1] + 3 == FLOOR_Y)	//jump
+	if (GetAsyncKeyState(VK_UP) & 0x8000 && y + 3 == FLOOR_Y)	//jump
 			character.accel[1] = -1.75;
-	
-	MotionControl(character.coord, character.accel, character.size, &character.flyTime);
 	
 	if (tick > character.tick[1] + 90) {	//leg tick	
 		character.tick[1] = tick;
@@ -250,72 +263,166 @@ void ControlCharacter() {
 			character.motion[0] = 1;
 	}
 	
-	DrawSprite(character.coord[0], character.coord[1], character.size[0], character.size[1], sprite_character);	//draw character sprite
+	DrawSprite(x, y, character.size[0], character.size[1], sprite_character);	//draw character sprite
+	MoveControl(character.coord, character.accel, character.size, &character.flyTime);	// control character movement
 	
 	if (character.direction) {
-		EditMap(character.coord[0], character.coord[1] + 1, '(');
+		EditMap(x, y + 1, '(');
 	} else {
-		EditMap(character.coord[0] + 2, character.coord[1] + 1, ')');
+		EditMap(x + 2, y + 1, ')');
 	}
 	
 	if (character.accel[0] > 1)
-		DrawSprite(character.coord[0] - 3, character.coord[1], 1, 3, "===");
+		DrawSprite(x - 2, y, 1, 3, "===");
 	if (character.accel[0] < -1)
-		DrawSprite(character.coord[0] + 5, character.coord[1], 1, 3, "===");
+		DrawSprite(x + 4, y, 1, 3, "===");
 		
 	if (character.motion[1] && character.motion[2] > 0) {	//draw attack motion
 		if (character.motion[3] == 3) {
-			DrawSprite(character.coord[0] - 5 + 8 * character.direction, character.coord[1], 5, 3, sprite_normalAttack[character.direction][character.motion[2] - 1]);
+			DrawSprite(x - 5 + 8 * character.direction, y, 5, 3, sprite_normalAttack[character.direction][character.motion[2] - 1]);
 		} else {
 			if (character.motion[2] == 2) {
-				EditMap(character.coord[0] - 2 + 6 * character.direction, character.coord[1] + 1, 'o');
-				DrawSprite(character.coord[0] - 5 + 10 * character.direction, character.coord[1] + 1, 3, 1, sprite_Weapon[character.direction][character.weapon]);
+				EditMap(x - 2 + 6 * character.direction, y + 1, 'o');
+				DrawSprite(x - 5 + 10 * character.direction, y + 1, 3, 1, sprite_weapon[character.direction][character.weapon]);
 			} else {
-				EditMap(character.coord[0] + 2 * character.direction, character.coord[1] + 1, 'o');
-				DrawSprite(character.coord[0] - 3 + 6 * character.direction, character.coord[1] + 1, 3, 1, sprite_Weapon[character.direction][character.weapon]);
+				EditMap(x + 2 * character.direction, y + 1, 'o');
+				DrawSprite(x - 3 + 6 * character.direction, y + 1, 3, 1, sprite_weapon[character.direction][character.weapon]);
 			}
 		}
 	} else {
-		EditMap(character.coord[0] + character.direction * 2, character.coord[1] + 1, 'o');
-		DrawSprite(character.coord[0] - 3 + 6 * character.direction, character.coord[1] + 1, 3, 1, sprite_Weapon[character.direction][character.weapon]);
+		EditMap(x + character.direction * 2, y + 1, 'o');
+		DrawSprite(x - 3 + 6 * character.direction, y + 1, 3, 1, sprite_weapon[character.direction][character.weapon]);
 		
 		if (character.motion[0] == 3)
-			EditMap(character.coord[0] + 1, character.coord[1]+ 1, 'l');
+			EditMap(x + 1, y + 1, 'l');
 	}
 	
-	if (move)
-		DrawSprite(character.coord[0], character.coord[1] + 2, 3, 1, sprite_character_leg[character.direction][character.motion[0] - 1]);	//draw leg motion
+	if (character.motion[0] > 0)
+		DrawSprite(x, y + 2, 3, 1, sprite_character_leg[character.direction][character.motion[0] - 1]);	//draw leg motion
 }
 
-void ControlEnemy() {
+void ControlEnemy(int index) {
 	bool move = FALSE, attack = FALSE;
+	short x = objects[index]->coord[0], y = objects[index]->coord[1];
+	short at_coord[2] = {character.coord[0] - 5 + 8 * character.direction, character.coord[1]}, at_size[2] = {5, 3};
 	
+	if (objects[index]->hp[1] < 1) {
+		character.exp[1] += objects[index]->exp;
+		character.score += objects[index]->exp;
+		RemoveObject(index);
+		return;
+	}
+	
+	if (objects[index]->tick[0] + 2000 > tick)
+		DrawNumber(x + objects[index]->size[0] / 2 - NumLen(character.mp[1]) / 2 - 1, y - 1, objects[index]->hp[1]);
+	
+	if (character.motion[2] == 1 && CollisionCheck(objects[index]->coord, at_coord, objects[index]->size, at_size)) {
+		objects[index]->tick[0] = tick;
+		objects[index]->hp[1] -= character.power;
+		if (character.motion[3] == 3)
+			objects[index]->hp[1] -= character.power;
+			
+		objects[index]->accel[1] = - 0.55;
+		if (EnemyPosition(x,  objects[index]->size[0]))
+			objects[index]->accel[0] = -0.75;
+		else
+			objects[index]->accel[0] = 0.75;
+	}
+	
+	if (objects[index]->kind == 100) {
+		if (y + objects[index]->size[1] == FLOOR_Y)
+			objects[index]->motion[0] = 0;
+		else 
+			objects[index]->motion[0] = 1;
+
+		if (objects[index]->tick[1] + objects[index]->tick[2] < tick) {
+			objects[index]->tick[1] = tick;
+			objects[index]->tick[2] = 1000 + rand() % 1000;
+			objects[index]->accel[1] = rand() / (float)RAND_MAX / 2 - 1.2;
+			
+			if (EnemyPosition(x,  objects[index]->size[0]))
+				objects[index]->accel[0] = 2.4 - rand() / (float)RAND_MAX;
+			else
+				objects[index]->accel[0] = rand() / (float)RAND_MAX - 2.4;
+		}
+		
+		DrawSprite(x, y, objects[index]->size[0], objects[index]->size[1], sprite_enemy1[objects[index]->motion[0]]);
+	}
+	
+	MoveControl(objects[index]->coord, objects[index]->accel, objects[index]->size, &objects[index]->flyTime);
 }
 
-void CreateObject() {
-	int num = 0;
+void ControlObject() {
+	for(int i = 0; i < OBJECT_MAX; i++) {
+		if (objects[i]) {
+			if (objects[i]->kind < 100)
+				return;
+			else if (objects[i]->kind > 99 && objects[i]->kind < 200)
+				ControlEnemy(i);
+			else
+				return;
+		}
+	}
+}
+
+void CreateObject(short x, short y, short kind) {
+	int index = 0;
 	Object *obj = 0;
 	
-	while(num < OBJECT_MAX) {
-		if (! objects[num - 1]) {
-        	obj = (Object *)malloc(sizeof(Object));
-    		objects[num - 1] = obj;  
+	while(TRUE) {
+		if (! objects[index])
+			break;
+			
+		if (index == OBJECT_MAX)
+			return;
 
-        	return;
-    	}
-    	
-    	num ++;
+    	index ++;
+	}
+	
+	obj = (Object *)malloc(sizeof(Object));
+    objects[index] = obj;
+    memset(obj, 0, sizeof(Object));
+    obj->kind = kind;
+    obj->coord[0] = x; obj->coord[1] = y;
+    
+    switch (kind) {
+		case 100:
+			obj->hp[0] = 300; obj->hp[1] = 300;
+			obj->exp = 30;
+			obj->size[0] = 4; obj->size[1] = 3;
+			obj->tick[2] = 1000 + rand() % 1000;
+			break;
 	}
 }
 
-void MotionControl(short coord[], float accel[], short size[], float *flyTime) {
+void RemoveObject(int index) {
+	free(objects[index]);
+    objects[index] = 0;
+}
+
+bool CollisionCheck(short coord1[], short coord2[], short size1[], short size2[]) {
+	if (coord1[0] > coord2[0] - size1[0] && coord1[0] < coord2[0] + size2[0]
+	 && coord1[1] > coord2[1] - size1[1] && coord1[1] < coord2[1] + size2[1])
+		return TRUE;
+	else
+		return FALSE;
+}
+
+bool EnemyPosition(short x, short size_x) {
+	if (character.coord[0] + 1 < x + floor(size_x / 2 + 0.5))
+		return FALSE;
+	else
+		return TRUE;
+}
+
+void MoveControl(short coord[], float accel[], short size[], float *flyTime) {
 	float x_value = accel[0], y_value = accel[1];
 	
-	if (coord[1] + size[1] < FLOOR_Y) {
+	if (coord[1] + size[1] == FLOOR_Y) {
+		*flyTime = 0;
+	} else {
 		*flyTime += 0.05;
 		accel[1] += *flyTime;
-	} else {
-		*flyTime = 0;
 	}
 	
 	if (x_value != 0 || y_value != 0) {
@@ -329,7 +436,7 @@ void MotionControl(short coord[], float accel[], short size[], float *flyTime) {
 	
 	coord[0] += floor(x_value + 0.5); coord[1] += floor(y_value + 0.5);
 	
-	if (accel[0] > 0) accel[0] -= 0.5; if (accel[0] < 0) accel[0] += 0.5;
+	if (accel[0] > 0) accel[0] -= 0.2; if (accel[0] < 0) accel[0] += 0.2;
 	if (accel[1] > 0) accel[1] -= 0.1; if (accel[1] < 0) accel[1] += 0.1;
 }
 
@@ -340,15 +447,13 @@ void DrawBox(short x, short y, short size_x, short size_y) {
 	for (int i = 1; i < size_x - 1; i++) {
 		EditMap(x + i, y, '-'); EditMap(x + i, y + size_y - 1, '-');
 	}
-	
-	for (int i =  1; i < size_y - 1; i++) {
+	for (int i = 1; i < size_y - 1; i++) {
 		EditMap(x, y + i, '|'); EditMap(x + size_x - 1, y + i, '|');
 	}
 }
 
 void DrawNumber(short x, short y, int num) {
-	int tmp = num;
-	short len = NumLen(tmp), cnt = len;
+	int tmp = num, len = NumLen(tmp), cnt = len;
     char str[len];
     
     do {
@@ -360,7 +465,7 @@ void DrawNumber(short x, short y, int num) {
     DrawSprite(x, y, len, 1, str);
 }
 
-void DrawSprite(short x, short y, short size_x, short size_y, char spr[]) {
+void DrawSprite(short x, short y, short size_x, short size_y, const char spr[]) {
 	for (int i = 0; i < size_y; i++) {
 		for (int n = 0; n < size_x; n++)
 			EditMap(x + n, y + i, spr[i * size_x + n]);
@@ -378,8 +483,7 @@ void EditMap(short x, short y, char str) {
 }
 
 int NumLen(int num) {
-	int tmp = num;
-	short len = 0;
+	int tmp = num, len = 0;
 	
 	if (num == 0) {
 		return 1;
@@ -390,14 +494,5 @@ int NumLen(int num) {
     	}
 	}
 	
-    return len;
-}
-
-int StrLen(char str[]) {
-	short len = 0;
-	
-	for(int i = 0; str[i]; i++)
-        len ++;
-    
     return len;
 }
